@@ -10,7 +10,11 @@ RUN apt-get update && apt-get install -y \
     zip \
     unzip \
     nginx \
+    npm \
     openssh-server
+
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs
 
 # Install PHP extensions
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
