@@ -1,67 +1,53 @@
 pipeline {
     agent any
 
-    environment {
-        DEPLOY_PLAYBOOK = 'ansible/deploy_laravel.yml'
-    }
-
-    options {
-        timestamps()
-        disableConcurrentBuilds()
-    }
-
     triggers {
-        pollSCM('H/5 * * * *')  // Every 5 minutes
+        pollSCM('H/5 * * * *') // Poll every 5 minutes
+    }
+
+    environment {
+        DEPLOY_SERVER = 'user@your-server-ip'
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Clone') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build Composer & NPM') {
+        stage('Build & Test') {
             steps {
-                dir('laravel') {
-                    sh 'composer install --no-interaction --prefer-dist'
-                    sh 'npm install'
-                    sh 'npm run build'
-                }
+                echo "Running tests..."
+                sh 'npm install'        // or 'composer install' / 'mvn test'
+                sh 'npm run test'       // or 'php artisan test'
             }
         }
 
-        stage('Run Tests (SQLite)') {
-            steps {
-                dir('laravel') {
-                    sh '''
-                    cp .env .env.testing
-                    sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env.testing
-                    sed -i 's|^DB_DATABASE=.*|DB_DATABASE=database/database.sqlite|' .env.testing
-                    touch database/database.sqlite
-                    php artisan migrate --env=testing
-                    php artisan test --env=testing
-                    '''
-                }
+        stage('Deploy via Ansible') {
+            when {
+                expression { currentBuild.currentResult == 'SUCCESS' }
             }
-        }
-
-        stage('Deploy with Ansible') {
             steps {
-                sh "ansible-playbook ${DEPLOY_PLAYBOOK}"
+                echo "Running Ansible Playbook..."
+                sh 'ansible-playbook -i inventory deploy.yml'
             }
         }
     }
 
     post {
         failure {
-            emailext (
-                subject: "❌ Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
-                body: """<p>Build failed on ${env.JOB_NAME} [#${env.BUILD_NUMBER}]</p>
-                         <p>Check console log at: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
-                to: 'srengty@gmail.com',
-                recipientProviders: [developers(), culprits()]
-            )
+            script {
+                emailext(
+                    subject: "BUILD FAILED: ${env.JOB_NAME} [${env.BUILD_NUMBER}]",
+                    body: "Build failed. Check: ${env.BUILD_URL}",
+                    recipientProviders: [developers(), culprits()],
+                    to: 'srengty@gmail.com'
+                )
+            }
+        }
+        success {
+            echo "Build succeeded and deployed"
         }
     }
 }

@@ -1,0 +1,12 @@
+- hosts: webservers
+  become: yes
+  tasks:
+    - name: Pull latest code
+      git:
+        repo: 'https://github.com/NimolChan/exam-devops.git'
+        dest: /var/www/exam-devops
+        version: main
+    - name: Restart service
+      service:
+        name: apache2
+        state: restarted
