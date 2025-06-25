@@ -38,8 +38,8 @@ pipeline {
 
     post {
         failure {
-            mail bcc: "${EMAIL}",
-                 to: "${env.GIT_COMMITTER_EMAIL}",
+            mail bcc: "",
+                 to: "srengty@gmail.com",
                  subject: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                  body: "Check Jenkins for build failure logs."
         }
