@@ -2,29 +2,53 @@ pipeline {
     agent any
 
     environment {
-        EMAIL_TO = 'srengty@gmail.com'
+        DEPLOY_PLAYBOOK = 'ansible/deploy_laravel.yml'
+    }
+
+    options {
+        timestamps()
+        disableConcurrentBuilds()
     }
 
     triggers {
-        pollSCM('H/5 * * * *')
+        pollSCM('H/5 * * * *')  // Every 5 minutes
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
-                git branch: 'main', url: 'https://github.com/NimolChan/exam-devops.git'
+                checkout scm
             }
         }
 
-        stage('Build & Test') {
+        stage('Build Composer & NPM') {
             steps {
-                sh 'php artisan test --env=testing'
+                dir('laravel') {
+                    sh 'composer install --no-interaction --prefer-dist'
+                    sh 'npm install'
+                    sh 'npm run build'
+                }
             }
         }
 
-        stage('Deploy') {
+        stage('Run Tests (SQLite)') {
             steps {
-                sh 'ansible-playbook deploy.yml'
+                dir('laravel') {
+                    sh '''
+                    cp .env .env.testing
+                    sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=sqlite/' .env.testing
+                    sed -i 's|^DB_DATABASE=.*|DB_DATABASE=database/database.sqlite|' .env.testing
+                    touch database/database.sqlite
+                    php artisan migrate --env=testing
+                    php artisan test --env=testing
+                    '''
+                }
+            }
+        }
+
+        stage('Deploy with Ansible') {
+            steps {
+                sh "ansible-playbook ${DEPLOY_PLAYBOOK}"
             }
         }
     }
@@ -32,10 +56,11 @@ pipeline {
     post {
         failure {
             emailext (
-                subject: "❌ Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: "Build failed: ${env.BUILD_URL}",
-                recipientProviders: [developers(), culprits()],
-                to: "${EMAIL_TO}"
+                subject: "❌ Build Failed: ${env.JOB_NAME} [#${env.BUILD_NUMBER}]",
+                body: """<p>Build failed on ${env.JOB_NAME} [#${env.BUILD_NUMBER}]</p>
+                         <p>Check console log at: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>""",
+                to: 'srengty@gmail.com',
+                recipientProviders: [developers(), culprits()]
             )
         }
     }
