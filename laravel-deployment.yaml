@@ -41,3 +41,11 @@ spec:
               value: Hello@123
             - name: MYSQL_DATABASE
               value: channimol-db
+
+        - name: phpmyadmin
+          image: phpmyadmin/phpmyadmin
+          ports:
+            - containerPort: 8888
+          env:
+            - name: PMA_HOST
+              value: 127.0.0.1

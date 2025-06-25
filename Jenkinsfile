@@ -1,69 +1,47 @@
 pipeline {
     agent any
 
-    // 🔄 Automatically check Git every 5 minutes
     triggers {
         pollSCM('H/5 * * * *')
     }
 
     environment {
-        // Customize these if needed
-        DEPLOY_SERVER = '192.168.1.100' // your server IP
-        DEPLOY_USER = 'ubuntu'          // your SSH user
-        DEPLOY_DIR = '/var/www/exam-devops'
+        EMAIL = 'srengty@gmail.com'
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                echo "📥 Cloning repository..."
-                checkout scm
+                git credentialsId: 'sumu', url: 'https://github.com/NimolChan/exam-devops.git'
             }
         }
 
-        stage('Install & Build') {
+        stage('Test') {
             steps {
-                echo "📦 Installing dependencies..."
-                sh 'npm install'    // for Laravel: `composer install`
+                sh 'php artisan test'
             }
         }
 
-        stage('Run Tests') {
+        stage('Build') {
             steps {
-                echo "🧪 Running tests..."
-                sh 'npm run test'   // for Laravel: `php artisan test`
+                sh 'composer install'
+                sh 'npm install && npm run build'
             }
         }
 
-        stage('Deploy via Ansible') {
-            when {
-                expression { currentBuild.currentResult == 'SUCCESS' }
-            }
+        stage('Deploy') {
             steps {
-                echo "🚀 Running Ansible Playbook..."
-                sh 'ansible-playbook -i inventory deploy.yml'
+                sh 'ansible-playbook -i inventory.ini deploy.yml'
             }
         }
     }
 
     post {
         failure {
-            echo "❌ Build failed. Sending notification email..."
-            script {
-                emailext(
-                    subject: "❌ BUILD FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                    body: """
-                        <p>Build failed for <b>${env.JOB_NAME}</b> #${env.BUILD_NUMBER}</p>
-                        <p>Check the logs: <a href="${env.BUILD_URL}">${env.BUILD_URL}</a></p>
-                    """,
-                    mimeType: 'text/html',
-                    to: "srengty@gmail.com",
-                    recipientProviders: [developers(), culprits()]
-                )
-            }
-        }
-        success {
-            echo "✅ Build and deployment completed successfully!"
+            mail bcc: "${EMAIL}",
+                 to: "${env.GIT_COMMITTER_EMAIL}",
+                 subject: "Build Failed: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                 body: "Check Jenkins for build failure logs."
         }
     }
 }

@@ -15,3 +15,7 @@ spec:
   - name: mysql
     port: 3306
     targetPort: 3306
+  - protocol: TCP
+    port: 8091
+    targetPort: 8888
+  type: LoadBalancer
