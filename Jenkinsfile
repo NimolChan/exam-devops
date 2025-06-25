@@ -12,7 +12,7 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                git credentialsId: 'sumu', url: 'https://github.com/NimolChan/exam-devops.git'
+                git branch: 'main', credentialsId: 'sumu', url: 'https://github.com/NimolChan/exam-devops.git'
             }
         }
 
